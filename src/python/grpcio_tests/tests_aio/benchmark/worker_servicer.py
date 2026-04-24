@@ -312,6 +312,26 @@ class WorkerServicer(worker_service_pb2_grpc.WorkerServiceServicer):
         async for request in request_iterator:
             end_time = time.monotonic()
             status = _get_client_status(start_time, end_time, qps_data)
+
+            payload_type = config.payload_config.WhichOneof("payload")
+            if payload_type == "simple_params":
+                resp_size = config.payload_config.simple_params.resp_size
+            elif payload_type == "bytebuf_params":
+                resp_size = config.payload_config.bytebuf_params.resp_size
+            else:
+                resp_size = 0
+
+            elapsed_time = end_time - start_time
+            if elapsed_time > 0:
+                qps = status.stats.latencies.count / elapsed_time
+                throughput = qps * resp_size
+                _LOGGER.info(
+                    f"[{config.rpc_type}] Throughput: {throughput / 1024 / 1024:.2f} MB/s "
+                    f"({throughput:.2f} bytes/s), QPS: {qps:.2f}, "
+                    f"Count: {status.stats.latencies.count:.0f}, "
+                    f"Elapsed: {elapsed_time:.2f}s"
+                )
+
             if request.mark.reset:
                 qps_data.reset()
                 start_time = time.monotonic()

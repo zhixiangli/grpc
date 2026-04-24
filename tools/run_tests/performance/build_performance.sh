@@ -32,7 +32,7 @@ then
   mkdir -p cmake/build
   cd cmake/build
   cmake -DgRPC_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release ../..
-  make qps_worker qps_json_driver -j8
+  make qps_worker qps_json_driver -j3
   cd ../..
   # unbreak subsequent make builds by restoring zconf.h (previously renamed by cmake build)
   # See https://github.com/grpc/grpc/issues/11581
@@ -61,7 +61,7 @@ do
     fi
     ;;
   "csharp")
-    python tools/run_tests/run_tests.py -l "$language" -c "$CONFIG" --build_only -j 8
+    python tools/run_tests/run_tests.py -l "$language" -c "$CONFIG" --build_only -j 3
     # unbreak subsequent make builds by restoring zconf.h (previously renamed by cmake portion of C#'s build)
     # See https://github.com/grpc/grpc/issues/11581
     (cd third_party/zlib; git checkout zconf.h)
@@ -73,10 +73,10 @@ do
     $bazel build -c opt //src/python/grpcio_tests/tests/qps:qps_worker
     ;;
   "python_asyncio")
-    $bazel build -c opt //src/python/grpcio_tests/tests_aio/benchmark:worker
+    $bazel build -c opt --config=python --jobs=2 --local_resources=cpu=2 --local_resources=memory=2048 //src/python/grpcio_tests/tests_aio/benchmark:worker
     ;;
   *)
-    python tools/run_tests/run_tests.py -l "$language" -c "$CONFIG" --build_only -j 8
+    python tools/run_tests/run_tests.py -l "$language" -c "$CONFIG" --build_only -j 3
     ;;
   esac
 done
