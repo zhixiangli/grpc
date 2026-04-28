@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_FromStringAndSize
+from libc.string cimport memcpy
+
 
 cdef class Operation:
 
@@ -161,25 +164,37 @@ cdef class ReceiveMessageOperation(Operation):
     cdef bint message_reader_status
     cdef grpc_slice message_slice
     cdef size_t message_slice_length
-    cdef list chunks = []
+    cdef size_t message_length
+    cdef size_t bytes_copied = 0
+    cdef char *message_buffer
 
-    if self._c_message_byte_buffer != NULL:
-      message_reader_status = grpc_byte_buffer_reader_init(
-          &message_reader, self._c_message_byte_buffer)
-      if message_reader_status:
-        while grpc_byte_buffer_reader_next(&message_reader, &message_slice):
-          message_slice_length = grpc_slice_length(message_slice)
-          if message_slice_length > 0:
-            chunks.append((<char *>grpc_slice_start_ptr(message_slice))[:message_slice_length])
-          grpc_slice_unref(message_slice)
-
-        grpc_byte_buffer_reader_destroy(&message_reader)
-        self._message = b"".join(chunks)
-      else:
-        self._message = None
-      grpc_byte_buffer_destroy(self._c_message_byte_buffer)
-    else:
+    if self._c_message_byte_buffer == NULL:
       self._message = None
+      return
+
+    message_reader_status = grpc_byte_buffer_reader_init(
+        &message_reader, self._c_message_byte_buffer)
+    if not message_reader_status:
+      self._message = None
+      grpc_byte_buffer_destroy(self._c_message_byte_buffer)
+      return
+
+    message_length = grpc_byte_buffer_length(self._c_message_byte_buffer)
+    self._message = PyBytes_FromStringAndSize(NULL, message_length)
+    message_buffer = PyBytes_AS_STRING(self._message)
+    with nogil:
+      while grpc_byte_buffer_reader_next(&message_reader, &message_slice):
+        message_slice_length = grpc_slice_length(message_slice)
+        if message_slice_length > 0:
+          memcpy(
+              message_buffer + bytes_copied,
+              grpc_slice_start_ptr(message_slice),
+              message_slice_length)
+          bytes_copied += message_slice_length
+        grpc_slice_unref(message_slice)
+
+      grpc_byte_buffer_reader_destroy(&message_reader)
+      grpc_byte_buffer_destroy(self._c_message_byte_buffer)
 
   def message(self):
     return self._message
