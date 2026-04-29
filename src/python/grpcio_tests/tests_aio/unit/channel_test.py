@@ -18,6 +18,7 @@ import os
 import unittest
 
 import grpc
+from grpc._cython import cygrpc
 from grpc.experimental import aio
 
 from src.proto.grpc.testing import messages_pb2
@@ -68,6 +69,23 @@ class TestChannel(AioTestBase):
             response = await hi(messages_pb2.SimpleRequest())
 
             self.assertIsInstance(response, messages_pb2.SimpleResponse)
+
+    async def test_unary_unary_uses_native_response_deserializer(self):
+        native_deserializer = grpc.experimental.native_deserializer(
+            cygrpc._test_native_deserializer()
+        )
+        async with aio.insecure_channel(self._server_target) as channel:
+            hi = channel.unary_unary(
+                _UNARY_CALL_METHOD,
+                request_serializer=messages_pb2.SimpleRequest.SerializeToString,
+                response_deserializer=native_deserializer,
+            )
+            response = await hi(messages_pb2.SimpleRequest())
+
+            self.assertEqual(
+                messages_pb2.SimpleResponse.FromString(response),
+                messages_pb2.SimpleResponse(),
+            )
 
     async def test_unary_call_times_out(self):
         async with aio.insecure_channel(self._server_target) as channel:
@@ -221,6 +239,36 @@ class TestChannel(AioTestBase):
 
         await call.done_writing()
 
+        self.assertEqual(grpc.StatusCode.OK, await call.code())
+        await channel.close()
+
+    async def test_stream_stream_uses_native_response_deserializer(self):
+        native_deserializer = grpc.experimental.native_deserializer(
+            cygrpc._test_native_deserializer()
+        )
+        channel = aio.insecure_channel(self._server_target)
+        multicallable = channel.stream_stream(
+            "/grpc.testing.TestService/FullDuplexCall",
+            request_serializer=messages_pb2.StreamingOutputCallRequest.SerializeToString,
+            response_deserializer=native_deserializer,
+        )
+        call = multicallable()
+
+        request = messages_pb2.StreamingOutputCallRequest()
+        request.response_parameters.append(
+            messages_pb2.ResponseParameters(size=_RESPONSE_PAYLOAD_SIZE)
+        )
+        await call.write(request)
+        await call.done_writing()
+
+        response = await call.read()
+
+        self.assertEqual(
+            messages_pb2.StreamingOutputCallResponse.FromString(
+                response
+            ).payload.body,
+            b"\0" * _RESPONSE_PAYLOAD_SIZE,
+        )
         self.assertEqual(grpc.StatusCode.OK, await call.code())
         await channel.close()
 

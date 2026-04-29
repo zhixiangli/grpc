@@ -113,14 +113,16 @@ cdef prepend_send_initial_metadata_op(tuple ops, tuple metadata):
 
 
 async def _receive_message(GrpcCallWrapper grpc_call_wrapper,
-                           object loop):
+                           object loop,
+                           object native_deserializer = None):
     """Retrieves parsed messages from Core.
 
     The messages maybe already in Core's buffer, so there isn't a 1-to-1
     mapping between this and the underlying "socket.read()". Also, eventually,
     this function will end with an EOF, which reads empty message.
     """
-    cdef ReceiveMessageOperation receive_op = ReceiveMessageOperation(_EMPTY_FLAG)
+    cdef ReceiveMessageOperation receive_op = ReceiveMessageOperation(
+        _EMPTY_FLAG, native_deserializer)
     cdef tuple ops = (receive_op,)
     try:
         await execute_batch(grpc_call_wrapper, ops, loop)

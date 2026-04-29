@@ -377,7 +377,14 @@ class _StreamResponseMixin(Call):
 
         # Reads response message from Core
         try:
-            raw_response = await self._cython_call.receive_serialized_message()
+            if cygrpc.is_native_deserializer(self._response_deserializer):
+                raw_response = (
+                    await self._cython_call.receive_deserialized_message(
+                        self._response_deserializer
+                    )
+                )
+            else:
+                raw_response = await self._cython_call.receive_serialized_message()
         except asyncio.CancelledError:
             if not self.cancelled():
                 self.cancel()
@@ -385,6 +392,8 @@ class _StreamResponseMixin(Call):
 
         if raw_response is cygrpc.EOF:
             return cygrpc.EOF
+        if cygrpc.is_native_deserializer(self._response_deserializer):
+            return raw_response
         return _common.deserialize(raw_response, self._response_deserializer)
 
     async def read(self) -> Union[EOFType, ResponseType]:
@@ -580,14 +589,24 @@ class UnaryUnaryCall(_UnaryResponseMixin, Call, _base_call.UnaryUnaryCall):
         # because the asyncio.Task class do not cache the exception object.
         # https://github.com/python/cpython/blob/edad4d89e357c92f70c0324b937845d652b20afd/Lib/asyncio/tasks.py#L785
         try:
+            native_deserializer = (
+                self._response_deserializer
+                if cygrpc.is_native_deserializer(self._response_deserializer)
+                else None
+            )
             serialized_response = await self._cython_call.unary_unary(
-                serialized_request, self._metadata, self._context
+                serialized_request,
+                self._metadata,
+                self._context,
+                native_deserializer,
             )
         except asyncio.CancelledError:
             if not self.cancelled():
                 self.cancel()
 
         if self._cython_call.is_ok():
+            if cygrpc.is_native_deserializer(self._response_deserializer):
+                return serialized_response
             return _common.deserialize(
                 serialized_response, self._response_deserializer
             )
@@ -692,8 +711,16 @@ class StreamUnaryCall(
 
     async def _conduct_rpc(self) -> ResponseType:
         try:
+            native_deserializer = (
+                self._response_deserializer
+                if cygrpc.is_native_deserializer(self._response_deserializer)
+                else None
+            )
             serialized_response = await self._cython_call.stream_unary(
-                self._metadata, self._metadata_sent_observer, self._context
+                self._metadata,
+                self._metadata_sent_observer,
+                self._context,
+                native_deserializer,
             )
         except asyncio.CancelledError:
             if not self.cancelled():
@@ -701,6 +728,8 @@ class StreamUnaryCall(
             raise
 
         if self._cython_call.is_ok():
+            if cygrpc.is_native_deserializer(self._response_deserializer):
+                return serialized_response
             return _common.deserialize(
                 serialized_response, self._response_deserializer
             )

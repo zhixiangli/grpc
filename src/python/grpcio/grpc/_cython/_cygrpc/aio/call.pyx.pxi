@@ -316,7 +316,8 @@ cdef class _AioCall(GrpcCallWrapper):
     async def unary_unary(self,
                           bytes request,
                           tuple outbound_initial_metadata,
-                          object context = None):
+                          object context = None,
+                          object native_deserializer = None):
         """Performs a unary unary RPC.
 
         Args:
@@ -332,7 +333,8 @@ cdef class _AioCall(GrpcCallWrapper):
         cdef SendMessageOperation send_message_op = SendMessageOperation(request, _EMPTY_FLAGS)
         cdef SendCloseFromClientOperation send_close_op = SendCloseFromClientOperation(_EMPTY_FLAGS)
         cdef ReceiveInitialMetadataOperation receive_initial_metadata_op = ReceiveInitialMetadataOperation(_EMPTY_FLAGS)
-        cdef ReceiveMessageOperation receive_message_op = ReceiveMessageOperation(_EMPTY_FLAGS)
+        cdef ReceiveMessageOperation receive_message_op = ReceiveMessageOperation(
+            _EMPTY_FLAGS, native_deserializer)
         cdef ReceiveStatusOnClientOperation receive_status_on_client_op = ReceiveStatusOnClientOperation(_EMPTY_FLAGS)
 
         if context is not None:
@@ -383,7 +385,7 @@ cdef class _AioCall(GrpcCallWrapper):
 
     async def receive_serialized_message(self):
         """Receives one single raw message in bytes."""
-        cdef bytes received_message
+        cdef object received_message
 
         # Receives a message. Returns None when failed:
         # * EOF, no more messages to read;
@@ -392,6 +394,20 @@ cdef class _AioCall(GrpcCallWrapper):
         received_message = await _receive_message(
             self,
             self._loop
+        )
+        if received_message is not None:
+            return received_message
+        else:
+            return EOF
+
+    async def receive_deserialized_message(self, object native_deserializer):
+        """Receives one single message through a native deserializer."""
+        cdef object received_message
+
+        received_message = await _receive_message(
+            self,
+            self._loop,
+            native_deserializer
         )
         if received_message is not None:
             return received_message
@@ -457,7 +473,8 @@ cdef class _AioCall(GrpcCallWrapper):
     async def stream_unary(self,
                            tuple outbound_initial_metadata,
                            object metadata_sent_observer,
-                           object context = None):
+                           object context = None,
+                           object native_deserializer = None):
         """Actual implementation of the complete unary-stream call.
 
         Needs to pay extra attention to the raise mechanism. If we want to
@@ -486,7 +503,8 @@ cdef class _AioCall(GrpcCallWrapper):
             return None
 
         cdef tuple inbound_ops
-        cdef ReceiveMessageOperation receive_message_op = ReceiveMessageOperation(_EMPTY_FLAGS)
+        cdef ReceiveMessageOperation receive_message_op = ReceiveMessageOperation(
+            _EMPTY_FLAGS, native_deserializer)
         cdef ReceiveStatusOnClientOperation receive_status_on_client_op = ReceiveStatusOnClientOperation(_EMPTY_FLAGS)
 
         if context is not None:

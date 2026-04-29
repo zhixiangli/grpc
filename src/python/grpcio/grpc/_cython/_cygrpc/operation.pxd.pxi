@@ -79,7 +79,8 @@ cdef class ReceiveMessageOperation(Operation):
 
   cdef readonly int _flags
   cdef grpc_byte_buffer *_c_message_byte_buffer
-  cdef bytes _message
+  cdef object _message
+  cdef object _native_deserializer
 
   cdef void c(self) except *
   cdef void un_c(self) except *

@@ -144,8 +144,9 @@ cdef class ReceiveInitialMetadataOperation(Operation):
 
 cdef class ReceiveMessageOperation(Operation):
 
-  def __cinit__(self, flags):
+  def __cinit__(self, flags, object native_deserializer=None):
     self._flags = flags
+    self._native_deserializer = native_deserializer
 
   def type(self):
     return GRPC_OP_RECV_MESSAGE
@@ -164,19 +165,23 @@ cdef class ReceiveMessageOperation(Operation):
     cdef list chunks = []
 
     if self._c_message_byte_buffer != NULL:
-      message_reader_status = grpc_byte_buffer_reader_init(
-          &message_reader, self._c_message_byte_buffer)
-      if message_reader_status:
-        while grpc_byte_buffer_reader_next(&message_reader, &message_slice):
-          message_slice_length = grpc_slice_length(message_slice)
-          if message_slice_length > 0:
-            chunks.append((<char *>grpc_slice_start_ptr(message_slice))[:message_slice_length])
-          grpc_slice_unref(message_slice)
-
-        grpc_byte_buffer_reader_destroy(&message_reader)
-        self._message = b"".join(chunks)
+      if self._native_deserializer is not None:
+        self._message = (<NativeDeserializer>self._native_deserializer
+                         ).deserialize_byte_buffer(self._c_message_byte_buffer)
       else:
-        self._message = None
+        message_reader_status = grpc_byte_buffer_reader_init(
+            &message_reader, self._c_message_byte_buffer)
+        if message_reader_status:
+          while grpc_byte_buffer_reader_next(&message_reader, &message_slice):
+            message_slice_length = grpc_slice_length(message_slice)
+            if message_slice_length > 0:
+              chunks.append((<char *>grpc_slice_start_ptr(message_slice))[:message_slice_length])
+            grpc_slice_unref(message_slice)
+
+          grpc_byte_buffer_reader_destroy(&message_reader)
+          self._message = b"".join(chunks)
+        else:
+          self._message = None
       grpc_byte_buffer_destroy(self._c_message_byte_buffer)
     else:
       self._message = None
