@@ -535,7 +535,7 @@ void PosixEndpointImpl::UpdateRcvLowat() {
 
 void PosixEndpointImpl::MaybeMakeReadSlices() {
   static const int kBigAlloc = 64 * 1024;
-  static const int kSmallAlloc = 8 * 1024;
+  static const int kSmallAlloc = 512;
   if (incoming_buffer_->Length() < std::max<size_t>(min_progress_size_, 1)) {
     size_t allocate_length = min_progress_size_;
     const size_t target_length = static_cast<size_t>(target_length_);

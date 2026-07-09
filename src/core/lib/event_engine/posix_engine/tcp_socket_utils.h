@@ -44,7 +44,7 @@
 namespace grpc_event_engine::experimental {
 
 struct PosixTcpOptions {
-  static constexpr int kDefaultReadChunkSize = 8192;
+  static constexpr int kDefaultReadChunkSize = 512;
   static constexpr int kDefaultMinReadChunksize = 256;
   static constexpr int kDefaultMaxReadChunksize = 64 * 1024;
   static constexpr int kZerocpTxEnabledDefault = 0;

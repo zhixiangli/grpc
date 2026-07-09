@@ -60,23 +60,6 @@ def insecure_channel_credentials():
     return _insecure_channel_credentials
 
 
-@experimental_api
-def native_deserializer(capsule):
-    """Wraps a native response deserializer capsule.
-
-    THIS IS AN EXPERIMENTAL API.
-
-    The capsule must use the ``grpc.python.native_deserializer.v1`` ABI. Native
-    deserializers can parse received message bytes in C/C++ code before the
-    result is materialized as a Python object.
-    """
-    return _cygrpc.NativeDeserializer(capsule)
-
-
-class ExperimentalApiWarning(Warning):
-    """A warning that an API is experimental."""
-
-
 def _warn_experimental(api_name, stack_offset):
     if api_name not in _EXPERIMENTAL_APIS_USED:
         _EXPERIMENTAL_APIS_USED.add(api_name)
@@ -96,6 +79,24 @@ def experimental_api(f):
         return f(*args, **kwargs)
 
     return _wrapper
+
+
+@experimental_api
+def native_deserializer(capsule):
+    """Wraps a native response deserializer capsule.
+
+    THIS IS AN EXPERIMENTAL API.
+
+    The capsule must use the ``grpc.python.native_deserializer.v1`` ABI. Native
+    deserializers can parse received message bytes in C/C++ code before the
+    result is materialized as a Python object.
+    """
+    return _cygrpc.NativeDeserializer(capsule)
+
+
+class ExperimentalApiWarning(Warning):
+    """A warning that an API is experimental."""
+
 
 
 def wrap_server_method_handler(wrapper, handler):

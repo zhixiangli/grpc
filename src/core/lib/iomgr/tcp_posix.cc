@@ -1071,7 +1071,7 @@ static bool tcp_do_read(grpc_tcp* tcp, grpc_error_handle* error)
 static void maybe_make_read_slices(grpc_tcp* tcp)
     ABSL_EXCLUSIVE_LOCKS_REQUIRED(tcp->read_mu) {
   static const int kBigAlloc = 64 * 1024;
-  static const int kSmallAlloc = 8 * 1024;
+  static const int kSmallAlloc = 512;
   if (tcp->incoming_buffer->length <
       std::max<size_t>(tcp->min_progress_size, 1)) {
     size_t allocate_length = tcp->min_progress_size;

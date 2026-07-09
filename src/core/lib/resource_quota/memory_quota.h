@@ -495,7 +495,7 @@ class GrpcMemoryAllocatorImpl final : public EventEngineMemoryAllocatorImpl {
   void MaybeDonateBack();
   // Replenish bytes from the quota, without blocking, possibly entering
   // overcommit.
-  void Replenish();
+  void Replenish(size_t needed = 0);
   template <typename F>
   void InsertReclaimer(size_t pass, F fn)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(reclaimer_mu_) {

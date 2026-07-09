@@ -64,7 +64,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 
-#define STAGING_BUFFER_SIZE 8192
+#define STAGING_BUFFER_SIZE 512
 
 namespace grpc_core {
 namespace {

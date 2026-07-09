@@ -54,7 +54,7 @@ namespace {
 constexpr size_t kMaxReplenishBytes = 1024 * 1024;
 
 // Minimum number of bytes an allocator will request from a quota in one step.
-constexpr size_t kMinReplenishBytes = 4096;
+constexpr size_t kMinReplenishBytes = 64;
 
 class MemoryQuotaTracker {
  public:
@@ -317,7 +317,9 @@ size_t GrpcMemoryAllocatorImpl::Reserve(MemoryRequest request) {
     }
 
     // If that failed, grab more from the quota and retry.
-    Replenish();
+    size_t available = free_bytes_.load(std::memory_order_relaxed);
+    size_t needed = request.min() > available ? request.min() - available : 0;
+    Replenish(needed);
   }
 }
 
@@ -389,11 +391,12 @@ void GrpcMemoryAllocatorImpl::MaybeDonateBack() {
   }
 }
 
-void GrpcMemoryAllocatorImpl::Replenish() {
+void GrpcMemoryAllocatorImpl::Replenish(size_t needed) {
   // Attempt a fairly low rate exponential growth request size, bounded between
   // some reasonable limits declared at top of file.
   auto amount = Clamp(taken_bytes_.load(std::memory_order_relaxed) / 3,
                       kMinReplenishBytes, kMaxReplenishBytes);
+  if (amount < needed) amount = needed;
   // Take the requested amount from the quota.
   memory_quota_->Take(
       /*allocator=*/this, amount);
